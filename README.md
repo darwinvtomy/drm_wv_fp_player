@@ -38,4 +38,101 @@ I am looking for oppertunities now :us: :fr: :gb: :uk: :de: 🇳🇱 🇨🇭�
 3. Motivatiors 
 4. And My Computer which keeps hanging while i work on Android Studio
 5. Google Search 
+## Installation
+
+First, add `drm_wv_fp_player` as a [dependency in your pubspec.yaml file](https://flutter.io/using-packages/).
+
+### iOS
+
+Warning: Still have to wait
+
+
+### Android
+
+Ensure the following permission is present in your Android Manifest file, located in `<project root>/android/app/src/main/AndroidManifest.xml:
+
+```xml
+<uses-permission android:name="android.permission.INTERNET"/>
+```
+
+The Flutter project template adds it, so it may already be there.
+
+
+### Supported Formats
+
+- On Android, the backing player is [ExoPlayer](https://google.github.io/ExoPlayer/),
+  please refer [here](https://google.github.io/ExoPlayer/supported-formats.html) for list of supported formats.
+
+
+### Example
+
+```dart
+import 'package:drm_wv_fp_player/drm_wv_fp_player.dart';
+import 'package:drm_wv_fp_player/model/secured_video_content.dart';
+
+void main() => runApp(VideoApp());
+
+class VideoApp extends StatefulWidget {
+  @override
+  _VideoAppState createState() => _VideoAppState();
+}
+
+class _VideoAppState extends State<VideoApp> {
+  VideoPlayerController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+      _controller = VideoPlayerController.exoplayerMeidaFrameWork(MediaContent(
+        name: "WV: Secure SD (cenc,MP4,H264)",//Can be null
+        uri: 'https://storage.googleapis.com/wvmedia/cenc/h264/tears/tears_sd.mpd',//Google Test Content
+        extension: null,//Pending Work
+        drm_scheme: 'widevine',
+        drm_license_url: 'https://proxy.uat.widevine.com/proxy?provider=widevine_test', //Google Test License
+        ad_tag_uri: null,//Pending work
+        spherical_stereo_mode: null, //Pending Work
+        playlist: null, //Pending Work
+      ))
+        ..initialize().then((_) {
+          // Ensure the first frame is shown after the video is initialized, even before the play button has been pressed.
+          setState(() {});
+        });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Video Demo',
+      home: Scaffold(
+        body: Center(
+          child: _controller.value.initialized
+              ? AspectRatio(
+                  aspectRatio: _controller.value.aspectRatio,
+                  child: VideoPlayer(_controller),
+                )
+              : Container(),
+        ),
+        floatingActionButton: FloatingActionButton(
+          onPressed: () {
+            setState(() {
+              _controller.value.isPlaying
+                  ? _controller.pause()
+                  : _controller.play();
+            });
+          },
+          child: Icon(
+            _controller.value.isPlaying ? Icons.pause : Icons.play_arrow,
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    super.dispose();
+    _controller.dispose();
+  }
+}
+```
 
