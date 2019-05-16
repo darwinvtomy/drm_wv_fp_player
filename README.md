@@ -25,19 +25,8 @@ For help getting started with Flutter, view Google's
 samples, guidance on mobile development, and a full API reference.
 
 
-Also I am looking for new Opportunity in Flutter and VOD app development in androidTV and mobile
-[LinkdIn](https://www.linkedin.com/in/darwin-v-tomy-15177711/), Just in case if any one wants to hire me.
-I am looking for oppertunities now :us: :fr: :gb: :uk: :de: 🇳🇱 🇨🇭🇦🇺 🇨🇦
 
-[PayPal](https://paypal.me/darwinvtomy?locale.x=en_GB), In case If anyone wants to donate money for :coffee:
 
-## Contributors
-
-1. [DARWIN V TOMY](https://github.com/darwinvtomy), --Yep that's meee
-2. Imiginary Friend
-3. Motivatiors 
-4. And My Computer which keeps hanging while i work on Android Studio
-5. Google Search 
 ## Installation
 
 First, add `drm_wv_fp_player` as a [dependency in your pubspec.yaml file](https://flutter.io/using-packages/).
@@ -136,3 +125,15 @@ class _VideoAppState extends State<VideoApp> {
 }
 ```
 
+
+## Contributors
+
+1. [DARWIN V TOMY](https://github.com/darwinvtomy), --Yep that's meee
+2. Imiginary Friend
+3. Motivatiors
+4. And My Computer which keeps hanging while i work on Android Studio
+5. Google Search
+
+
+[LinkdIn](https://www.linkedin.com/in/darwin-v-tomy-15177711/), If any one wants Connect me. I am happy to help
+[PayPal](https://paypal.me/darwinvtomy?locale.x=en_GB), In case If anyone wants to buy me a :coffee:
