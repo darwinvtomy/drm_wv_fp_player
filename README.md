@@ -147,5 +147,5 @@ class _VideoAppState extends State<VideoApp> {
 5. Google Search
 
 
-[LinkdIn](https://www.linkedin.com/in/darwin-v-tomy-15177711/), If any one wants Connect me. I am happy to help
-[PayPal](https://paypal.me/darwinvtomy?locale.x=en_GB), In case If anyone wants to buy me a :coffee:
+* [LinkdIn](https://www.linkedin.com/in/darwin-v-tomy-15177711/), If any one wants Connect me. I am happy to help
+* [PayPal](https://paypal.me/darwinvtomy?locale.x=en_GB), In case If anyone wants to buy me a :coffee:
