@@ -6,7 +6,7 @@ An awesome  Flutter plugin for Playing Widevine and Fairplay(Incomplete still) D
 ## Getting Started
 
 This project is a starting point for a Flutter app for VOD based Apps
-We have Integrated DRM for Flutter based VOD App
+We have Integrated DRM for Flutter based VOD App 
 The development is Premature stage and I need volunteers to work on the IOS counter part
 We used Android's [Exoplayer](https://github.com/google/ExoPlayer),Framework to integrate in Native Android
 And [video_player](https://github.com/flutter/plugins/tree/master/packages/video_player), in flutter
@@ -51,6 +51,18 @@ The Flutter project template adds it, so it may already be there.
 
 - On Android, the backing player is [ExoPlayer](https://google.github.io/ExoPlayer/),
   please refer [here](https://google.github.io/ExoPlayer/supported-formats.html) for list of supported formats.
+
+### DRM
+
+Widevine is currently supported
+HDCP Compilence is seems to be working
+HLS has some bugs. Will be solved soon
+Playready HSS is been solved a new patch will be committed after the testing 
+Fairplay I need a MAC book and Apple Account 
+DASH is supported with adaptive streaming
+MULTI-DRM Sample will be added once Fairplay is Fixed
+All Functionality of Exoplayer will be replicated. 
+Contents like CENC MULTI-DRM contents to support multiple platforms will be added later
 
 
 ### Example
