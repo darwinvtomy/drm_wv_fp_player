@@ -85,7 +85,7 @@ class _VideoAppState extends State<VideoApp> {
       _controller = VideoPlayerController.exoplayerMeidaFrameWork(MediaContent(
         name: "WV: Secure SD (cenc,MP4,H264)",//Can be null
         uri: 'https://storage.googleapis.com/wvmedia/cenc/h264/tears/tears_sd.mpd',//Google Test Content
-        extension: null,//Pending Work
+        extension: null,//Extension can be added like (mpd,m3u8)
         drm_scheme: 'widevine',
         drm_license_url: 'https://proxy.uat.widevine.com/proxy?provider=widevine_test', //Google Test License
         ad_tag_uri: null,//Pending work
