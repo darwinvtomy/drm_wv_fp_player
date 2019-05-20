@@ -108,7 +108,8 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
                                 true);
             }
 
-            MediaSource mediaSource = buildMediaSource(uri, dataSourceFactory, context);
+            MediaSource mediaSource = buildMediaSource(uri, null, dataSourceFactory, context);
+            Log.e(TAG, "VideoPlayer: URI LINK "+uri.toString() );
             exoPlayer.prepare(mediaSource);
 
             setupVideoPlayer(eventChannel, textureEntry, result);
@@ -175,7 +176,7 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
                                 DefaultHttpDataSource.DEFAULT_READ_TIMEOUT_MILLIS,
                                 true);
             }
-            MediaSource mediaSource = buildMediaSource(uri, dataSourceFactory, context);
+            MediaSource mediaSource = buildMediaSource(uri,mediaContent.extension, dataSourceFactory, context);
             exoPlayer.prepare(mediaSource);
 
             setupVideoPlayer(eventChannel, textureEntry, result);
@@ -190,9 +191,12 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
         }
 
         private MediaSource buildMediaSource(
-                Uri uri, DataSource.Factory mediaDataSourceFactory, Context context) {
+                Uri uri, String extension, DataSource.Factory mediaDataSourceFactory, Context context) {
+            @C.ContentType int contenttype = Util.inferContentType(uri, extension);
+            Log.e(TAG, "buildMediaSource: CONTENT TYPE "+contenttype  );
             int type = Util.inferContentType(uri.getLastPathSegment());
-            switch (type) {
+            Log.e(TAG, "buildMediaSource: THe  CONTENT TYPE "+type  );
+            switch (contenttype) {
                 case C.TYPE_SS:
                     return new SsMediaSource.Factory(
                             new DefaultSsChunkSource.Factory(mediaDataSourceFactory),
@@ -456,7 +460,10 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
                     videoPlayers.put(handle.id(), player);
                     Log.e("DATA_RETRIVAL", "onMethodCall: " + call.argument("name"));
                     Log.e("DATA_RETRIVAL", "onMethodCall: " + call.argument("drm_scheme"));
+                    Log.e("DATA_RETRIVAL", "onMethodCall: " + call.argument("uri"));
                     Log.e("DATA_RETRIVAL", "onMethodCall: " + call.argument("sourcetype"));
+                    Log.e("DATA_RETRIVAL", "onMethodCall: " + call.argument("extension"));
+                    Log.e("DATA_RETRIVAL", "onMethodCall: " + call.argument("drm_license_url"));
                 }
                 break;
             }

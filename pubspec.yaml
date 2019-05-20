@@ -1,6 +1,6 @@
 name: drm_wv_fp_player
 description: A  Flutter plugin for Playing Widevine and Fairplay Contents For Android and IOS Phones
-version: 0.0.1
+version: 0.0.3
 author: DARWIN V TOMY<darwinvtomy@gmail.com>
 homepage: https://github.com/darwinvtomy/drm_wv_fp_player
 

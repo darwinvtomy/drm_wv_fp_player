@@ -56,13 +56,11 @@ The Flutter project template adds it, so it may already be there.
 
 * Widevine is currently supported
 * HDCP Compilence is seems to be working
-* HLS has some bugs. Will be solved soon
-* Playready HSS is been solved a new patch will be committed after the testing 
+* Playready is not functional in android
 * Fairplay I need a MAC book and Apple Account 
 * DASH is supported with adaptive streaming
 * MULTI-DRM Sample will be added once Fairplay is Fixed
-* All Functionality of Exoplayer will be replicated. 
-* Contents like CENC MULTI-DRM contents to support multiple platforms will be added later
+* All Functionality of Exoplayer will be replicated.
 
 
 ### Example

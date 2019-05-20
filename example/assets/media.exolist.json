@@ -142,7 +142,8 @@
         "uri": "https://storage.googleapis.com/wvmedia/cenc/h264/tears/tears.mpd",
         "drm_scheme": "widevine",
         "drm_license_url": "https://proxy.uat.widevine.com/proxy?provider=widevine_test"
-      },   {
+      },
+      {
         "name": "WV: Secure SD & HD AXINOMS (cenc,MP4,H264)",
         "uri": "https://media.axprod.net/TestVectors/v6-MultiDRM/Manifest_1080p.mpd",
         "drm_scheme": "widevine",
@@ -331,6 +332,23 @@
     ]
   },
   {
+    "name": "Multi-DRM Files for Flutter",
+    "samples": [
+      {
+        "name": "WV & PR: Clear SD & HD Big Buck Bunny video  (MP4,H264) Not Working",
+        "drm_scheme": "widevine",
+        "uri": "https://amssamples.streaming.mediaservices.windows.net/622b189f-ec39-43f2-93a2-201ac4e31ce1/BigBuckBunny.ism/manifest",
+        "extension": "mpd"
+      },
+      {
+        "name": "WV: Axinom DRM Not working",
+        "uri": "https://media.axprod.net/TestVectors/v6-MultiDRM/Manifest_1080p.mpd",
+        "drm_scheme": "widevine",
+        "drm_license_url": "https://drm-widevine-licensing.axtest.net/AcquireLicense?X-AxDRM-Message=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ2ZXJzaW9uIjoxLCJjb21fa2V5X2lkIjoiNjllNTQwODgtZTllMC00NTMwLThjMWEtMWViNmRjZDBkMTRlIiwibWVzc2FnZSI6eyJ0eXBlIjoiZW50aXRsZW1lbnRfbWVzc2FnZSIsInZlcnNpb24iOjIsImNvbnRlbnRfa2V5c19zb3VyY2UiOnsiaW5saW5lIjpbeyJpZCI6IjZlNWExZDI2LTI3NTctNDdkNy04MDQ2LWVhYTVkMWQzNGI1YSIsInVzYWdlX3BvbGljeSI6IlBvbGljeSBBIn1dfSwiY29udGVudF9rZXlfdXNhZ2VfcG9saWNpZXMiOlt7Im5hbWUiOiJQb2xpY3kgQSIsInBsYXlyZWFkeSI6eyJtaW5fZGV2aWNlX3NlY3VyaXR5X2xldmVsIjoxNTAsInBsYXlfZW5hYmxlcnMiOlsiNzg2NjI3RDgtQzJBNi00NEJFLThGODgtMDhBRTI1NUIwMUE3Il19LCJ3aWRldmluZSI6e319XX19.1ie6MpTxLn8fNz29ERynMaMOnuRI2sSAxLhBysLybac&provider=widevine_test"
+      }
+    ]
+  },
+  {
     "name": "SmoothStreaming",
     "samples": [
       {
@@ -338,7 +356,7 @@
         "uri": "https://playready.directtaps.net/smoothstreaming/SSWSS720H264/SuperSpeedway_720.ism"
       },
       {
-        "name": "Super speed (PlayReady)",
+        "name": "Super speed (PlayReady) Not working on android",
         "uri": "https://playready.directtaps.net/smoothstreaming/SSWSS720H264PR/SuperSpeedway_720.ism",
         "drm_scheme": "playready"
       }
