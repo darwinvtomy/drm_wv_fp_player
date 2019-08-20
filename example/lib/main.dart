@@ -93,9 +93,18 @@ class StuffInTiles extends StatelessWidget {
         enabled: true,
         isThreeLine: false,
         onLongPress: () => print("long press"),
-        onTap: () {
-          Navigator.push(
-              _context, MaterialPageRoute(builder: (_) => VideoApp(sampleVideo: t,)));
+        onTap: () async {
+          await Navigator.push(
+              _context,
+              MaterialPageRoute(
+                  builder: (_) => VideoApp(
+                        sampleVideo: t,
+                      )));
+          SystemChrome.setEnabledSystemUIOverlays(SystemUiOverlay.values);
+          SystemChrome.setPreferredOrientations([
+            DeviceOrientation.portraitUp,
+            DeviceOrientation.portraitDown,
+          ]);
         },
         subtitle: Text(
           "Subtitle Description",
