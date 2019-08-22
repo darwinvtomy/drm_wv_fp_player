@@ -208,7 +208,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
         break;
       case DataSourceType.exomedia:
         dataSourceDescription = <String, dynamic>{
-          'sourcetype':'exomedia',
+          'sourcetype': 'exomedia',
           'name': mediaContent.name,
           'uri': mediaContent.uri,
           'extension': mediaContent.extension,
@@ -700,3 +700,113 @@ class _VideoProgressIndicatorState extends State<VideoProgressIndicator> {
     }
   }
 }
+
+class MediaVolumeSeekBar extends StatefulWidget {
+  final VideoPlayerController controller;
+  MediaVolumeSeekBar(this.controller);
+
+  @override
+  _MediaVolumeSeekBarState createState() => _MediaVolumeSeekBarState();
+}
+
+class _MediaVolumeSeekBarState extends State<MediaVolumeSeekBar> {
+  var volume = 0;
+  Timer timer;
+  bool showVolumeControls = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      alignment: Alignment.center,
+      children: <Widget>[
+        if (showVolumeControls)
+          Container(
+            margin: EdgeInsets.only(left: 20),
+            alignment: Alignment(-1, 0),
+            child: Stack(
+              alignment: Alignment.bottomCenter,
+              children: <Widget>[
+                Container(
+                  decoration: BoxDecoration(
+                    color: ThemeData().accentColor.withOpacity(0.5),
+                  ),
+                  height: 200 * volume / 30,
+                  width: 20,
+                ),
+                Container(
+                  decoration: BoxDecoration(
+                      border: Border.all(
+                    width: 3.0,
+                    color: Colors.grey[100].withOpacity(0.5),
+                  )),
+                  height: 200,
+                  width: 20,
+                ),
+              ],
+            ),
+          ),
+        if (showVolumeControls)
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              Icon(
+                Icons.volume_up,
+                color: Colors.white.withOpacity(0.8),
+                size: 90,
+              ),
+              Text(
+                '$volume',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.8),
+                  fontSize: 30.0,
+                ),
+              ),
+            ],
+          ),
+        Container(
+          margin: EdgeInsets.only(right: 20),
+          alignment: Alignment(1, 0),
+          child: Container(
+            height: MediaQuery.of(context).size.height / 1.25,
+            width: MediaQuery.of(context).size.width / 2.5,
+            child: GestureDetector(
+              onPanUpdate: (details) {
+                showVolumeControls = true;
+                int v = volume;
+                v = v + (details.delta.dy * -0.3).toInt();
+                if (v > 30) {
+                  volume = 30;
+                } else if (v < 0) {
+                  volume = 0;
+                } else {
+                  volume = v;
+                }
+                _reload();
+              },
+              onPanEnd: (details) async {
+                if (timer != null) {
+                  if (timer.isActive) timer.cancel();
+                }
+                timer = Timer(Duration(milliseconds: 1500), () {
+                  showVolumeControls = false;
+                  _reload();
+                });
+                await _channel.invokeMethod(
+                  'setVolume',
+                  <String, dynamic>{
+                    'textureId': widget.controller._textureId,
+                    'volume': (volume / 30).toDouble(),
+                  },
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  _reload() => (this.mounted) ? setState(() {}) : null;
+}
+
+//TODO: Add brighness control also

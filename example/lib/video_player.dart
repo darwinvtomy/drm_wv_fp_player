@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:drm_wv_fp_player/drm_wv_fp_player.dart';
 import 'package:drm_wv_fp_player/model/secured_video_content.dart';
+import 'package:flutter/services.dart';
 import 'model/media.dart';
+
 class VideoApp extends StatefulWidget {
   Sample sampleVideo;
 
@@ -39,6 +41,9 @@ class _VideoAppState extends State<VideoApp> {
         // Ensure the first frame is shown after the video is initialized, even before the play button has been pressed.
         setState(() {});
       });*/
+    SystemChrome.setEnabledSystemUIOverlays([]);
+    SystemChrome.setPreferredOrientations(
+        [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
   }
 
   @override
@@ -46,14 +51,17 @@ class _VideoAppState extends State<VideoApp> {
     return MaterialApp(
       title: 'Video Demo',
       home: Scaffold(
-        body: Center(
-          child: _controller.value.initialized
-              ? AspectRatio(
-                  aspectRatio: _controller.value.aspectRatio,
-                  child: VideoPlayer(_controller),
-                )
-              : Container(),
-        ),
+        body: Stack(children: [
+          Center(
+            child: _controller.value.initialized
+                ? AspectRatio(
+                    aspectRatio: _controller.value.aspectRatio,
+                    child: VideoPlayer(_controller),
+                  )
+                : Container(),
+          ),
+          MediaVolumeSeekBar(_controller),
+        ]),
         floatingActionButton: FloatingActionButton(
           onPressed: () {
             setState(() {
