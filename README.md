@@ -139,10 +139,11 @@ class _VideoAppState extends State<VideoApp> {
 ## Contributors
 
 1. [DARWIN V TOMY](https://github.com/darwinvtomy), --Yep that's meee
-2. Imiginary Friend
-3. Motivatiors
-4. And My Computer which keeps hanging while i work on Android Studio
-5. Google Search
+2. [CANEWSIN](https://github.com/canewsin), --The New Guy
+3. Imiginary Friend
+4. Motivatiors
+5. And My Computer which keeps hanging while i work on Android Studio
+6. Google Search
 
 
 * [LinkdIn](https://www.linkedin.com/in/darwin-v-tomy-15177711/), If any one wants Connect me. I am happy to help
