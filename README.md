@@ -34,6 +34,7 @@ First, add `drm_wv_fp_player` as a [dependency in your pubspec.yaml file](https:
 ### iOS
 
 Warning: Still have to wait
+We are looking for volunteers for working on IOS Side
 
 
 ### Android
