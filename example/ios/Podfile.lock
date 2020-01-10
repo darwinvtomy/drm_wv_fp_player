@@ -2,21 +2,33 @@ PODS:
   - drm_wv_fp_player (0.0.1):
     - Flutter
   - Flutter (1.0.0)
+  - screen (0.0.1):
+    - Flutter
+  - video_player (0.0.1):
+    - Flutter
 
 DEPENDENCIES:
   - drm_wv_fp_player (from `.symlinks/plugins/drm_wv_fp_player/ios`)
   - Flutter (from `.symlinks/flutter/ios`)
+  - screen (from `.symlinks/plugins/screen/ios`)
+  - video_player (from `.symlinks/plugins/video_player/ios`)
 
 EXTERNAL SOURCES:
   drm_wv_fp_player:
     :path: ".symlinks/plugins/drm_wv_fp_player/ios"
   Flutter:
     :path: ".symlinks/flutter/ios"
+  screen:
+    :path: ".symlinks/plugins/screen/ios"
+  video_player:
+    :path: ".symlinks/plugins/video_player/ios"
 
 SPEC CHECKSUMS:
   drm_wv_fp_player: 2813113874064f824aff852488828e6ab95d45d3
-  Flutter: 0e3d915762c693b495b44d77113d4970485de6ec
+  Flutter: 58dd7d1b27887414a370fcccb9e645c08ffd7a6a
+  screen: abd91ca7bf3426e1cc3646d27e9b2358d6bf07b0
+  video_player: 3964090a33353060ed7f58aa6427c7b4b208ec21
 
 PODFILE CHECKSUM: ebd43b443038e611b86ede96e613bd6033c49497
 
-COCOAPODS: 1.8.4
+COCOAPODS: 1.6.1
