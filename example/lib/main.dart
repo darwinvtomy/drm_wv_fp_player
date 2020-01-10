@@ -3,12 +3,11 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'video_player.dart';
+import 'package:drm_wv_fp_player_example/PlayerPage.dart';
 import 'model/media.dart';
 
 Future<List<Media>> loadMediaFiles() async {
   String jsonString = await rootBundle.loadString('assets/media.exolist.json');
-  print(Media.parseMediaLists(jsonString).toString());
   return Media.parseMediaLists(jsonString);
 }
 
@@ -21,27 +20,35 @@ class MyApp extends StatelessWidget {
 
     return MaterialApp(
       title: appTitle,
+      debugShowCheckedModeBanner: false,
       home: MyHomePage(title: appTitle),
     );
   }
 }
 
-class MyHomePage extends StatelessWidget {
+class MyHomePage extends StatefulWidget {
   final String title;
 
   MyHomePage({Key key, this.title}) : super(key: key);
 
   @override
+  _MyHomePageState createState() => _MyHomePageState();
+}
+
+class _MyHomePageState extends State<MyHomePage> {
+  @override
   Widget build(BuildContext context) {
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+    ]);
     return Scaffold(
       appBar: AppBar(
-        title: Text(title),
+        title: Text(widget.title),
       ),
       body: FutureBuilder<List<Media>>(
         future: loadMediaFiles(),
         builder: (context, snapshot) {
           if (snapshot.hasError) print(snapshot.error);
-          print('SNAP SHOT DATA  ${snapshot.data.toString()}');
           return snapshot.hasData
               ? PhotosList(medias: snapshot.data)
               : Center(child: CircularProgressIndicator());
@@ -50,6 +57,7 @@ class MyHomePage extends StatelessWidget {
     );
   }
 }
+
 
 class PhotosList extends StatelessWidget {
   final List<Media> medias;
@@ -67,16 +75,20 @@ class PhotosList extends StatelessWidget {
   }
 }
 
-class StuffInTiles extends StatelessWidget {
+class StuffInTiles extends StatefulWidget {
   final Media myTile;
   BuildContext _context;
 
   StuffInTiles(this.myTile);
+  @override
+  _StuffInTilesState createState() => _StuffInTilesState();
+}
 
+class _StuffInTilesState extends State<StuffInTiles> {
   @override
   Widget build(BuildContext context) {
-    _context = context;
-    return _buildTiles(myTile);
+    widget._context = context;
+    return _buildTiles(widget.myTile);
   }
 
   Widget _buildTiles(Media t) {
@@ -94,24 +106,31 @@ class StuffInTiles extends StatelessWidget {
         isThreeLine: false,
         onLongPress: () => print("long press"),
         onTap: () async {
-          await Navigator.push(
-              _context,
+          print("url ${t.uri ?? ""}");
+          print("url ${t.drm_license_url ?? ""}");
+          final result = await Navigator.push(
+              widget._context,
               MaterialPageRoute(
-                  builder: (_) => VideoApp(
-                        sampleVideo: t,
-                      )));
-          SystemChrome.setEnabledSystemUIOverlays(SystemUiOverlay.values);
-          SystemChrome.setPreferredOrientations([
-            DeviceOrientation.portraitUp,
-            DeviceOrientation.portraitDown,
-          ]);
+                  builder: (_) => Player(
+                    sampleVideo: t,
+                  )));
+          if(result != null) {
+//            SystemChrome.setEnabledSystemUIOverlays(SystemUiOverlay.values);
+            print("back from player");
+            setState(() {
+              SystemChrome.setPreferredOrientations([
+                DeviceOrientation.portraitUp,
+              ]);
+            });
+          }
         },
         subtitle: Text(
-          "Subtitle Description",
+          t.extension ?? "",
         ),
         selected: true,
         title: Text(t.name,
             style: TextStyle(fontSize: 18.0, color: Colors.black54)));
   }
 }
+
 //ChewieDemo(sampleVideo: t,)

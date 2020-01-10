@@ -9,17 +9,25 @@ import static com.google.android.exoplayer2.Player.REPEAT_MODE_ALL;
 import static com.google.android.exoplayer2.Player.REPEAT_MODE_OFF;
 
 import android.content.Context;
+import android.content.res.Resources;
+import android.graphics.Canvas;
 import android.net.Uri;
 import android.os.Build;
 import android.util.Log;
 import android.util.LongSparseArray;
 import android.view.Surface;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
+import android.view.TextureView;
+import android.view.View;
+import android.view.ViewGroup;
 
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.DefaultRenderersFactory;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.ExoPlayerFactory;
 import com.google.android.exoplayer2.Format;
+import com.google.android.exoplayer2.PlaybackParameters;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.Player.EventListener;
 import com.google.android.exoplayer2.SimpleExoPlayer;
@@ -30,21 +38,39 @@ import com.google.android.exoplayer2.drm.FrameworkMediaDrm;
 import com.google.android.exoplayer2.drm.HttpMediaDrmCallback;
 import com.google.android.exoplayer2.drm.UnsupportedDrmException;
 import com.google.android.exoplayer2.extractor.DefaultExtractorsFactory;
+import com.google.android.exoplayer2.offline.FilteringManifestParser;
+import com.google.android.exoplayer2.offline.StreamKey;
 import com.google.android.exoplayer2.source.ExtractorMediaSource;
 import com.google.android.exoplayer2.source.MediaSource;
+import com.google.android.exoplayer2.source.TrackGroup;
+import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.source.dash.DashMediaSource;
 import com.google.android.exoplayer2.source.dash.DefaultDashChunkSource;
+import com.google.android.exoplayer2.source.dash.manifest.DashManifestParser;
 import com.google.android.exoplayer2.source.hls.HlsMediaSource;
+import com.google.android.exoplayer2.source.hls.playlist.DefaultHlsPlaylistParserFactory;
 import com.google.android.exoplayer2.source.smoothstreaming.DefaultSsChunkSource;
 import com.google.android.exoplayer2.source.smoothstreaming.SsMediaSource;
+import com.google.android.exoplayer2.source.smoothstreaming.manifest.SsManifestParser;
+import com.google.android.exoplayer2.trackselection.AdaptiveTrackSelection;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
-import com.google.android.exoplayer2.trackselection.TrackSelector;
+import com.google.android.exoplayer2.trackselection.MappingTrackSelector;
+import com.google.android.exoplayer2.trackselection.TrackSelection;
+import com.google.android.exoplayer2.ui.DefaultTrackNameProvider;
+import com.google.android.exoplayer2.ui.TrackNameProvider;
+import com.google.android.exoplayer2.upstream.BandwidthMeter;
 import com.google.android.exoplayer2.upstream.DataSource;
+import com.google.android.exoplayer2.upstream.DefaultBandwidthMeter;
 import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
 import com.google.android.exoplayer2.upstream.HttpDataSource;
+import com.google.android.exoplayer2.util.Assertions;
 import com.google.android.exoplayer2.util.Util;
+
+
+import org.json.JSONArray;
+import org.json.JSONObject;
 
 import io.flutter.plugin.common.EventChannel;
 import io.flutter.plugin.common.MethodCall;
@@ -56,9 +82,12 @@ import io.flutter.plugin.common.PluginRegistry.Registrar;
 import io.flutter.view.FlutterNativeView;
 import io.flutter.view.TextureRegistry;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -80,6 +109,7 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
         private final EventChannel eventChannel;
 
         private boolean isInitialized = false;
+        private DefaultTrackSelector trackSelector;
 
         VideoPlayer(
                 Context context,
@@ -90,7 +120,7 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
             this.eventChannel = eventChannel;
             this.textureEntry = textureEntry;
 
-            TrackSelector trackSelector = new DefaultTrackSelector();
+            trackSelector = new DefaultTrackSelector();
             exoPlayer = ExoPlayerFactory.newSimpleInstance(context, trackSelector);
 
             Uri uri = Uri.parse(dataSource);
@@ -109,10 +139,10 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
             }
 
             MediaSource mediaSource = buildMediaSource(uri, null, dataSourceFactory, context);
-            Log.e(TAG, "VideoPlayer: URI LINK "+uri.toString() );
+//            Log.e(TAG, "VideoPlayer: URI LINK "+uri.toString() );
             exoPlayer.prepare(mediaSource);
 
-            setupVideoPlayer(eventChannel, textureEntry, result);
+            setupVideoPlayer(eventChannel, textureEntry, result, context);
         }
 
         VideoPlayer(
@@ -126,7 +156,7 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
             DefaultDrmSessionManager<FrameworkMediaCrypto> drmSessionManager = null;
             //Add Custom DRM Management
 
-            if (mediaContent.drm_scheme!=null) {
+            if (mediaContent.drm_scheme != null) {
                 String drmLicenseUrl = mediaContent.drm_license_url;//WIDEVINE EXAMPLE
                 String[] keyRequestPropertiesArray =
                         null;
@@ -151,17 +181,24 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
                     }
                 }
                 if (drmSessionManager == null) {
-                    Log.e(TAG, "VideoPlayer: DRM ERROR "+errorStringId );
+//                    Log.e(TAG, "VideoPlayer: DRM ERROR "+errorStringId );
                     return;
                 }
             }
 
             DefaultRenderersFactory renderersFactory =
                     new DefaultRenderersFactory(context, DefaultRenderersFactory.EXTENSION_RENDERER_MODE_OFF);
-            TrackSelector trackSelector = new DefaultTrackSelector();
+            TrackSelection.Factory trackSelectionFactory;
+            DefaultTrackSelector.Parameters trackSelectorParameters;
+            BandwidthMeter bandwidthMeter = new DefaultBandwidthMeter();
+            trackSelectionFactory = new AdaptiveTrackSelection.Factory(bandwidthMeter);
+
+            trackSelector = new DefaultTrackSelector(trackSelectionFactory);
+            trackSelectorParameters = new DefaultTrackSelector.ParametersBuilder().build();
+            trackSelector.setParameters(trackSelectorParameters);
             exoPlayer =
-                    ExoPlayerFactory.newSimpleInstance(context,renderersFactory, trackSelector,drmSessionManager);
-           // exoPlayer = ExoPlayerFactory.newSimpleInstance(context, trackSelector);
+                    ExoPlayerFactory.newSimpleInstance(context, renderersFactory, trackSelector, drmSessionManager);
+            // exoPlayer = ExoPlayerFactory.newSimpleInstance(context, trackSelector);
             Uri uri = Uri.parse(mediaContent.uri);
 
             DataSource.Factory dataSourceFactory;
@@ -176,10 +213,10 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
                                 DefaultHttpDataSource.DEFAULT_READ_TIMEOUT_MILLIS,
                                 true);
             }
-            MediaSource mediaSource = buildMediaSource(uri,mediaContent.extension, dataSourceFactory, context);
+            MediaSource mediaSource = buildMediaSource(uri, mediaContent.extension, dataSourceFactory, context);
             exoPlayer.prepare(mediaSource);
 
-            setupVideoPlayer(eventChannel, textureEntry, result);
+            setupVideoPlayer(eventChannel, textureEntry, result, context);
         }
 
         private static boolean isFileOrAsset(Uri uri) {
@@ -193,9 +230,9 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
         private MediaSource buildMediaSource(
                 Uri uri, String extension, DataSource.Factory mediaDataSourceFactory, Context context) {
             @C.ContentType int contenttype = Util.inferContentType(uri, extension);
-            Log.e(TAG, "buildMediaSource: CONTENT TYPE "+contenttype  );
+//            Log.e(TAG, "buildMediaSource: CONTENT TYPE "+contenttype  );
             int type = Util.inferContentType(uri.getLastPathSegment());
-            Log.e(TAG, "buildMediaSource: THe  CONTENT TYPE "+type  );
+//            Log.e(TAG, "buildMediaSource: THe  CONTENT TYPE "+type  );
             switch (contenttype) {
                 case C.TYPE_SS:
                     return new SsMediaSource.Factory(
@@ -222,7 +259,7 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
         private void setupVideoPlayer(
                 EventChannel eventChannel,
                 TextureRegistry.SurfaceTextureEntry textureEntry,
-                Result result) {
+                Result result, Context context) {
 
             eventChannel.setStreamHandler(
                     new EventChannel.StreamHandler() {
@@ -238,7 +275,15 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
                     });
 
             surface = new Surface(textureEntry.surfaceTexture());
+
+            SurfaceView view = new SurfaceView(context);
+            view.setLayoutParams(new ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT));
+
+            exoPlayer.setVideoSurfaceHolder(view.getHolder());
             exoPlayer.setVideoSurface(surface);
+//            exoPlayer.setVideoSurfaceView(view);
             setAudioAttributes(exoPlayer);
 
             exoPlayer.addListener(
@@ -251,7 +296,9 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
                             } else if (playbackState == Player.STATE_READY) {
                                 if (!isInitialized) {
                                     isInitialized = true;
-                                    sendInitialized();
+                                    getDefaultAudioAndVideo(context);
+//                                    sendInitialized(new ArrayList<>(), new ArrayList<>(), new ArrayList<>());
+
                                 }
                             } else if (playbackState == Player.STATE_ENDED) {
                                 Map<String, Object> event = new HashMap<>();
@@ -273,6 +320,94 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
             result.success(reply);
         }
 
+        private void getDefaultAudioAndVideo(Context context) {
+            ArrayList<String> AudioNew = new ArrayList<>();
+            ArrayList<String> ResolutionChange = new ArrayList<>();
+            ArrayList<String> SubtitleNew = new ArrayList<>();
+            MappingTrackSelector.MappedTrackInfo mappedTrackInfo = trackSelector.getCurrentMappedTrackInfo();
+            if (mappedTrackInfo != null) {
+                for (int i = 0; i < mappedTrackInfo.getRendererCount(); i++) {
+                    TrackGroupArray trackGroups = mappedTrackInfo.getTrackGroups(i);
+                    if (trackGroups.length != 0) {
+                        switch (exoPlayer.getRendererType(i)) {
+                            case C.TRACK_TYPE_AUDIO:
+                                ArrayList<String> unq = new ArrayList<>();
+                                String name = "DEFAULT", code = "def";
+                                for (int j = 0; j < trackGroups.length; j++) {
+                                    TrackGroup group = trackGroups.get(j);
+                                    if (group.length > 0) {
+                                        for (int k = 0; k < group.length; k++) {
+                                            com.google.android.exoplayer2.Format format = group.getFormat(k);
+                                            Log.v("kushal audio", format.toString());
+                                            TrackNameProvider trackNameProvider = new DefaultTrackNameProvider(context.getResources());
+                                            trackNameProvider = Assertions.checkNotNull(trackNameProvider);
+                                            Log.v("kushal audio", trackNameProvider.getTrackName(format) + ":" + format.language);
+                                            unq.add(trackNameProvider.getTrackName(format) + ":" + format.language);
+
+                                        }
+                                    }
+                                }
+                                AudioNew = new ArrayList<String>(new LinkedHashSet<String>(unq));
+                                if (AudioNew.size() > 0)
+                                    trackSelector.setParameters(
+                                            trackSelector.buildUponParameters()
+                                                    .setPreferredAudioLanguage(AudioNew.get(0).split(":")[1]));
+                                break;
+                            case C.TRACK_TYPE_VIDEO:
+                                ArrayList<Integer> unq1 = new ArrayList<>();
+                                ArrayList<String> unqBitrate = new ArrayList<>();
+                                for (int j = 0; j < trackGroups.length; j++) {
+                                    TrackGroup group = trackGroups.get(j);
+                                    if (group.length > 0) {
+                                        for (int k = 0; k < group.length; k++) {
+                                            com.google.android.exoplayer2.Format format = group.getFormat(k);
+                                            unqBitrate.add(format.width + " X " + format.height + "p");
+                                            unq1.add(format.height);
+                                            Log.v("kushal video", format.width + " X " + format.height);
+                                        }
+                                    }
+                                }
+                                ResolutionChange = unqBitrate;
+                                trackSelector.setParameters(
+                                        trackSelector.buildUponParameters()
+                                                .setMaxVideoSize(Integer.parseInt(ResolutionChange.get(0).split(" X ")[0]), Integer.parseInt((ResolutionChange.get(0).split(" X ")[0]).replace("p", ""))));
+                                break;
+                            case C.TRACK_TYPE_TEXT:
+                                ArrayList<String> vtt = new ArrayList<>();
+                                String nameVTT = "DEFAULT", codeVTT = "def";
+                                for (int j = 0; j < trackGroups.length; j++) {
+                                    TrackGroup group = trackGroups.get(j);
+                                    if (group.length > 0) {
+                                        for (int k = 0; k < group.length; k++) {
+                                            com.google.android.exoplayer2.Format format = group.getFormat(k);
+                                            TrackNameProvider trackNameProvider = new DefaultTrackNameProvider(context.getResources());
+                                            trackNameProvider = Assertions.checkNotNull(trackNameProvider);
+                                            Log.v("kushal subtitle", trackNameProvider.getTrackName(format));
+                                            vtt.add(trackNameProvider.getTrackName(format) + ":" + format.language);
+                                            if (k == 0) {
+                                                String part[] = trackNameProvider.getTrackName(format).split(",");
+                                                name = part[0];
+                                                code = format.language;
+                                            }
+                                        }
+                                    }
+                                }
+                                SubtitleNew = new ArrayList<String>(new LinkedHashSet<String>(vtt));
+                                if (SubtitleNew.size() > 0)
+                                    trackSelector.setParameters(
+                                            trackSelector.buildUponParameters()
+                                                    .setPreferredTextLanguage(SubtitleNew.get(0)));
+
+                                break;
+                            default:
+                                break;
+                        }
+                    }
+                }
+            }
+            sendInitialized(AudioNew, ResolutionChange, SubtitleNew);
+        }
+
         private void sendBufferingUpdate() {
             Map<String, Object> event = new HashMap<>();
             event.put("event", "bufferingUpdate");
@@ -292,12 +427,30 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
             }
         }
 
-        void play() {
-            exoPlayer.setPlayWhenReady(true);
-        }
 
         void pause() {
             exoPlayer.setPlayWhenReady(false);
+        }
+
+        void setSpeed(double speed) {
+            PlaybackParameters param = new PlaybackParameters((float) speed);
+            exoPlayer.setPlaybackParameters(param);
+        }
+
+        void setResolution(int width, int height) {
+            trackSelector.setParameters(
+                    trackSelector.buildUponParameters()
+                            .setMaxVideoSize(width, height));
+        }
+
+        void setAudio(String code) {
+            trackSelector.setParameters(
+                    trackSelector.buildUponParameters()
+                            .setPreferredAudioLanguage(code));
+        }
+
+        void play() {
+            exoPlayer.setPlayWhenReady(true);
         }
 
         void setLooping(boolean value) {
@@ -318,7 +471,7 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
         }
 
         @SuppressWarnings("SuspiciousNameCombination")
-        private void sendInitialized() {
+        private void sendInitialized(ArrayList<String> audios, ArrayList<String> resolutions, ArrayList<String> subtitles) {
             if (isInitialized) {
                 Map<String, Object> event = new HashMap<>();
                 event.put("event", "initialized");
@@ -337,9 +490,25 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
                     event.put("width", width);
                     event.put("height", height);
                 }
+                setEvent(audios, "audios", event);
+                setEvent(resolutions, "resolutions", event);
+                setEvent(subtitles, "subtitles", event);
                 eventSink.success(event);
             }
         }
+
+        private void setEvent(ArrayList<String> value, String type, Map<String, Object> event) {
+            JSONArray array = new JSONArray();
+            if (value.size() > 0) {
+                for (int i = 0; i < value.size(); i++) {
+                    array.put(value.get(i));
+                }
+            } else {
+                array.put("NO_VALUE");
+            }
+            event.put(type, array.toString());
+        }
+
 
         void dispose() {
             if (isInitialized) {
@@ -443,7 +612,7 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
                         player =
                                 new VideoPlayer(
                                         registrar.context(), eventChannel, handle, mediaContent, result);
-                        Log.e("DATA_RETRIVAL", "_____________SOURCETYPE EXOMEDIA____________");
+//                        Log.e("DATA_RETRIVAL", "_____________SOURCETYPE EXOMEDIA____________");
                     } else {
                         player =
                                 new VideoPlayer(
@@ -458,12 +627,12 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
                                                 null), result);
                     }
                     videoPlayers.put(handle.id(), player);
-                    Log.e("DATA_RETRIVAL", "onMethodCall: " + call.argument("name"));
-                    Log.e("DATA_RETRIVAL", "onMethodCall: " + call.argument("drm_scheme"));
-                    Log.e("DATA_RETRIVAL", "onMethodCall: " + call.argument("uri"));
-                    Log.e("DATA_RETRIVAL", "onMethodCall: " + call.argument("sourcetype"));
-                    Log.e("DATA_RETRIVAL", "onMethodCall: " + call.argument("extension"));
-                    Log.e("DATA_RETRIVAL", "onMethodCall: " + call.argument("drm_license_url"));
+//                    Log.e("DATA_RETRIVAL", "onMethodCall: " + call.argument("name"));
+//                    Log.e("DATA_RETRIVAL", "onMethodCall: " + call.argument("drm_scheme"));
+//                    Log.e("DATA_RETRIVAL", "onMethodCall: " + call.argument("uri"));
+//                    Log.e("DATA_RETRIVAL", "onMethodCall: " + call.argument("sourcetype"));
+//                    Log.e("DATA_RETRIVAL", "onMethodCall: " + call.argument("extension"));
+//                    Log.e("DATA_RETRIVAL", "onMethodCall: " + call.argument("drm_license_url"));
                 }
                 break;
             }
@@ -515,6 +684,18 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
                 videoPlayers.remove(textureId);
                 result.success(null);
                 break;
+            case "speed":
+                player.setSpeed(call.argument("speed"));
+                result.success(null);
+                break;
+            case "resolution":
+                player.setResolution(call.argument("width"), call.argument("height"));
+                result.success(null);
+                break;
+            case "audio":
+                player.setAudio(call.argument("code"));
+                result.success(null);
+                break;
             default:
                 result.notImplemented();
                 break;
@@ -524,8 +705,10 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
     private static DefaultDrmSessionManager<FrameworkMediaCrypto> buildDrmSessionManagerV18(
             UUID uuid, String licenseUrl, String[] keyRequestPropertiesArray, boolean multiSession)
             throws UnsupportedDrmException {
+
+
         HttpDataSource.Factory licenseDataSourceFactory =
-                new DefaultHttpDataSourceFactory("Orion Connect");
+                new DefaultHttpDataSourceFactory("ExoPlayer");
         HttpMediaDrmCallback drmCallback =
                 new HttpMediaDrmCallback(licenseUrl, licenseDataSourceFactory);
         if (keyRequestPropertiesArray != null) {
@@ -536,8 +719,13 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
         }
         releaseMediaDrm();
         mediaDrm = FrameworkMediaDrm.newInstance(uuid);
-        return new DefaultDrmSessionManager<>(uuid, mediaDrm, drmCallback, null, multiSession);
+        // Kushal
+        DefaultDrmSessionManager<FrameworkMediaCrypto> drmSessionManager = new DefaultDrmSessionManager<>(
+                uuid, mediaDrm, drmCallback, null, multiSession);
+
+        return drmSessionManager;
     }
+
     private static void releaseMediaDrm() {
         if (mediaDrm != null) {
             mediaDrm.release();
