@@ -9,6 +9,7 @@ import static com.google.android.exoplayer2.Player.REPEAT_MODE_ALL;
 import static com.google.android.exoplayer2.Player.REPEAT_MODE_OFF;
 
 import android.content.Context;
+import android.content.ContextWrapper;
 import android.content.res.Resources;
 import android.graphics.Canvas;
 import android.net.Uri;
@@ -21,6 +22,7 @@ import android.view.SurfaceView;
 import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
+import android.content.Context;
 
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.DefaultRenderersFactory;
@@ -42,6 +44,8 @@ import com.google.android.exoplayer2.offline.FilteringManifestParser;
 import com.google.android.exoplayer2.offline.StreamKey;
 import com.google.android.exoplayer2.source.ExtractorMediaSource;
 import com.google.android.exoplayer2.source.MediaSource;
+import com.google.android.exoplayer2.source.MergingMediaSource;
+import com.google.android.exoplayer2.source.SingleSampleMediaSource;
 import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.source.dash.DashMediaSource;
@@ -57,6 +61,7 @@ import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.trackselection.MappingTrackSelector;
 import com.google.android.exoplayer2.trackselection.TrackSelection;
 import com.google.android.exoplayer2.ui.DefaultTrackNameProvider;
+import com.google.android.exoplayer2.ui.PlayerView;
 import com.google.android.exoplayer2.ui.TrackNameProvider;
 import com.google.android.exoplayer2.upstream.BandwidthMeter;
 import com.google.android.exoplayer2.upstream.DataSource;
@@ -64,8 +69,16 @@ import com.google.android.exoplayer2.upstream.DefaultBandwidthMeter;
 import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
+import com.google.android.exoplayer2.upstream.FileDataSourceFactory;
 import com.google.android.exoplayer2.upstream.HttpDataSource;
+import com.google.android.exoplayer2.upstream.TransferListener;
+import com.google.android.exoplayer2.upstream.cache.Cache;
+import com.google.android.exoplayer2.upstream.cache.CacheDataSource;
+import com.google.android.exoplayer2.upstream.cache.CacheDataSourceFactory;
+import com.google.android.exoplayer2.upstream.cache.NoOpCacheEvictor;
+import com.google.android.exoplayer2.upstream.cache.SimpleCache;
 import com.google.android.exoplayer2.util.Assertions;
+import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.android.exoplayer2.util.Util;
 
 
@@ -82,6 +95,7 @@ import io.flutter.plugin.common.PluginRegistry.Registrar;
 import io.flutter.view.FlutterNativeView;
 import io.flutter.view.TextureRegistry;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -95,6 +109,9 @@ import java.util.UUID;
 public class DrmWvFpPlayerPlugin implements MethodCallHandler {
     private static final String TAG = "VideoPlayerPlugin";
     private static FrameworkMediaDrm mediaDrm;
+    private static final String DOWNLOAD_CONTENT_DIRECTORY = "downloads";
+    private static final DefaultBandwidthMeter BANDWIDTH_METER = new DefaultBandwidthMeter();
+
 
     private static class VideoPlayer {
 
@@ -110,6 +127,8 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
 
         private boolean isInitialized = false;
         private DefaultTrackSelector trackSelector;
+
+
 
         VideoPlayer(
                 Context context,
@@ -137,7 +156,6 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
                                 DefaultHttpDataSource.DEFAULT_READ_TIMEOUT_MILLIS,
                                 true);
             }
-
             MediaSource mediaSource = buildMediaSource(uri, null, dataSourceFactory, context);
 //            Log.e(TAG, "VideoPlayer: URI LINK "+uri.toString() );
             exoPlayer.prepare(mediaSource);
@@ -213,9 +231,19 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
                                 DefaultHttpDataSource.DEFAULT_READ_TIMEOUT_MILLIS,
                                 true);
             }
-            MediaSource mediaSource = buildMediaSource(uri, mediaContent.extension, dataSourceFactory, context);
+            MediaSource[] mediaSources = new MediaSource[1 + mediaContent.subtitlesLink.size()];
+            mediaSources[0] = buildMediaSource(uri, mediaContent.extension, dataSourceFactory, context);
+            for (int i= 0; i<mediaContent.subtitlesLink.size(); i++) {
+                Format textFormat = Format.createTextSampleFormat(null, MimeTypes.APPLICATION_SUBRIP,
+                        null, Format.NO_VALUE, Format.NO_VALUE, "en", null, Format.OFFSET_SAMPLE_RELATIVE);
+                Log.e("srt link is",mediaContent.subtitlesLink.get(i));
+                Uri uriSubtitle = Uri.parse(mediaContent.subtitlesLink.get(i));
+                MediaSource subtitleSource = (new SingleSampleMediaSource.Factory(dataSourceFactory)).createMediaSource(uriSubtitle, textFormat, C.TIME_UNSET);
+                mediaSources[1+i] = subtitleSource;
+            }
+            MediaSource mediaSource;
+            mediaSource = mediaSources.length == 1 ? mediaSources[0] : new MergingMediaSource(mediaSources);
             exoPlayer.prepare(mediaSource);
-
             setupVideoPlayer(eventChannel, textureEntry, result, context);
         }
 
@@ -226,6 +254,49 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
             String scheme = uri.getScheme();
             return scheme.equals("file") || scheme.equals("asset");
         }
+
+        private DataSource.Factory buildDataSourceFactory(boolean useBandwidthMeter, Context context) {
+            return buildDataSourceFactory(useBandwidthMeter ? BANDWIDTH_METER : null, context);
+        }
+
+        public DataSource.Factory buildDataSourceFactory(TransferListener listener, Context context) {
+            DefaultDataSourceFactory upstreamFactory =
+                    new DefaultDataSourceFactory(context, listener, buildHttpDataSourceFactory(listener, context));
+            return buildReadOnlyCacheDataSource(upstreamFactory, getDownloadCache());
+        }
+        /**
+         * Returns a {@link HttpDataSource.Factory}.
+         */
+        public HttpDataSource.Factory buildHttpDataSourceFactory(
+                TransferListener listener, Context context) {
+            String userAgent = Util.getUserAgent(context, "ExoPlayerDemo");
+            return new DefaultHttpDataSourceFactory(userAgent, listener);
+        }
+
+        private synchronized Cache getDownloadCache() {
+            Cache downloadCache;
+            File downloadContentDirectory = new File(getDownloadDirectory(), DOWNLOAD_CONTENT_DIRECTORY);
+                downloadCache = new SimpleCache(downloadContentDirectory, new NoOpCacheEvictor());
+            return downloadCache;
+        }
+
+        private File getDownloadDirectory() {
+            File  downloadDirectory = new File("");
+            return downloadDirectory;
+        }
+
+
+        private static CacheDataSourceFactory buildReadOnlyCacheDataSource(
+                DefaultDataSourceFactory upstreamFactory, Cache cache) {
+            return new CacheDataSourceFactory(
+                    cache,
+                    upstreamFactory,
+                    new FileDataSourceFactory(),
+                    /* cacheWriteDataSinkFactory= */ null,
+                    CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR,
+                    /* eventListener= */ null);
+        }
+
 
         private MediaSource buildMediaSource(
                 Uri uri, String extension, DataSource.Factory mediaDataSourceFactory, Context context) {
@@ -281,6 +352,12 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT));
 
+            PlayerView player = new PlayerView(context);
+            player.setLayoutParams( new ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT));
+            player.setPlayer(exoPlayer);
+            player.getSubtitleView().setBackgroundColor(0xFFFFFFFF);
             exoPlayer.setVideoSurfaceHolder(view.getHolder());
             exoPlayer.setVideoSurface(surface);
 //            exoPlayer.setVideoSurfaceView(view);
@@ -396,7 +473,7 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
                                 if (SubtitleNew.size() > 0)
                                     trackSelector.setParameters(
                                             trackSelector.buildUponParameters()
-                                                    .setPreferredTextLanguage(SubtitleNew.get(0)));
+                                                    .setPreferredTextLanguage(SubtitleNew.get(0).split(":")[1]));
 
                                 break;
                             default:
@@ -431,6 +508,7 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
         void pause() {
             exoPlayer.setPlayWhenReady(false);
         }
+
 
         void setSpeed(double speed) {
             PlaybackParameters param = new PlaybackParameters((float) speed);
@@ -608,7 +686,8 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
                                 call.argument("drm_license_url"),
                                 call.argument("ad_tag_uri"),
                                 null,
-                                call.argument("spherical_stereo_mode"));
+                                call.argument("spherical_stereo_mode"),
+                                call.argument("subtitlesLink"));
                         player =
                                 new VideoPlayer(
                                         registrar.context(), eventChannel, handle, mediaContent, result);
@@ -624,7 +703,8 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
                                                 null,
                                                 null,
                                                 null,
-                                                null), result);
+                                                null,
+                                                call.argument("subtitlesLink")), result);
                     }
                     videoPlayers.put(handle.id(), player);
 //                    Log.e("DATA_RETRIVAL", "onMethodCall: " + call.argument("name"));

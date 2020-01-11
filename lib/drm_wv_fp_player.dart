@@ -238,7 +238,8 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
           'drm_scheme': mediaContent.drm_scheme,
           'drm_license_url': mediaContent.drm_license_url,
           'ad_tag_uri': mediaContent.ad_tag_uri,
-          'spherical_stereo_mode': mediaContent.spherical_stereo_mode
+          'spherical_stereo_mode': mediaContent.spherical_stereo_mode,
+          "subtitlesLink" : mediaContent.subtitles,
         };
         break;
       case DataSourceType.network:

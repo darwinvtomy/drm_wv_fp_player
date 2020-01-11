@@ -6,11 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:drm_wv_fp_player_example/PlayerPage.dart';
 import 'model/media.dart';
 
-Future<List<Media>> loadMediaFiles() async {
-  String jsonString = await rootBundle.loadString('assets/media.exolist.json');
-  return Media.parseMediaLists(jsonString);
-}
-
 void main() => runApp(MyApp());
 
 class MyApp extends StatelessWidget {
@@ -36,16 +31,40 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+  bool dataReturned;
+  List<Media> media;
+
+  Future<List<Media>> loadMediaFiles() async {
+    String jsonString =
+        await rootBundle.loadString('assets/media.exolist.json');
+    setState(() {
+      dataReturned = true;
+      media = Media.parseMediaLists(jsonString);
+    });
+    return Media.parseMediaLists(jsonString);
+  }
+
+  @override
+  void initState() {
+    // TODO: implement initState
+    super.initState();
+    dataReturned = false;
+    media = new List();
+    loadMediaFiles();
+  }
+
   @override
   Widget build(BuildContext context) {
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
     ]);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.title),
       ),
-      body: FutureBuilder<List<Media>>(
+      body: !dataReturned
+          ? /* FutureBuilder<List<Media>>(
         future: loadMediaFiles(),
         builder: (context, snapshot) {
           if (snapshot.hasError) print(snapshot.error);
@@ -53,11 +72,12 @@ class _MyHomePageState extends State<MyHomePage> {
               ? PhotosList(medias: snapshot.data)
               : Center(child: CircularProgressIndicator());
         },
-      ),
+      )*/
+          Container()
+          : PhotosList(medias: media),
     );
   }
 }
-
 
 class PhotosList extends StatelessWidget {
   final List<Media> medias;
@@ -69,7 +89,7 @@ class PhotosList extends StatelessWidget {
     return ListView.builder(
       itemCount: medias.length,
       itemBuilder: (context, index) {
-        return StuffInTiles(medias[index]);
+        return StuffInTiles(medias[index], index, medias);
       },
     );
   }
@@ -77,28 +97,18 @@ class PhotosList extends StatelessWidget {
 
 class StuffInTiles extends StatefulWidget {
   final Media myTile;
+  final List<Media> medias;
+  final int index;
   BuildContext _context;
 
-  StuffInTiles(this.myTile);
+  StuffInTiles(this.myTile, this.index, this.medias);
+
   @override
   _StuffInTilesState createState() => _StuffInTilesState();
 }
 
 class _StuffInTilesState extends State<StuffInTiles> {
-  @override
-  Widget build(BuildContext context) {
-    widget._context = context;
-    return _buildTiles(widget.myTile);
-  }
-
-  Widget _buildTiles(Media t) {
-    return ExpansionTile(
-      key: PageStorageKey<int>(3),
-      title: Text(t.name),
-      children: t.samples.map(_buildSubTiles).toList(),
-    );
-  }
-
+  Sample returnSample;
   Widget _buildSubTiles(Sample t) {
     return ListTile(
         dense: true,
@@ -108,16 +118,20 @@ class _StuffInTilesState extends State<StuffInTiles> {
         onTap: () async {
           print("url ${t.uri ?? ""}");
           print("url ${t.drm_license_url ?? ""}");
-          final result = await Navigator.push(
+          print("url ${t.playedLength ?? ""}");
+          Sample result = await Navigator.push(
               widget._context,
               MaterialPageRoute(
-                  builder: (_) => Player(
-                    sampleVideo: t,
-                  )));
-          if(result != null) {
+                  builder: (_) =>
+                      Player(
+                        sampleVideo: returnSample != null ? returnSample.name == t.name ? returnSample : t : t,
+                      )));
+          if (result != null) {
 //            SystemChrome.setEnabledSystemUIOverlays(SystemUiOverlay.values);
             print("back from player");
             setState(() {
+              returnSample = result;
+              print(t.playedLength);
               SystemChrome.setPreferredOrientations([
                 DeviceOrientation.portraitUp,
               ]);
@@ -130,6 +144,20 @@ class _StuffInTilesState extends State<StuffInTiles> {
         selected: true,
         title: Text(t.name,
             style: TextStyle(fontSize: 18.0, color: Colors.black54)));
+  }
+
+  Widget _buildTiles(Media t) {
+    return ExpansionTile(
+      key: PageStorageKey<int>(3),
+      title: Text(t.name),
+      children: t.samples.map(_buildSubTiles).toList(),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    widget._context = context;
+    return _buildTiles(widget.myTile);
   }
 }
 
