@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:drm_wv_fp_player_example/models/style/subtitle_position.dart';
 import 'package:drm_wv_fp_player_example/subtitle_controller.dart';
+import 'package:drm_wv_fp_player_example/subtitle_text_view.dart';
 import 'package:drm_wv_fp_player_example/subtitle_wrapper_package.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -38,13 +39,24 @@ class _PlayerState extends State<Player> {
   ];
   List<ResolutionValues> resolutionValues = new List();
   List<AudioValues> audioValues = new List();
+  List<SubtitleValues> subtitleValues = [
+    SubtitleValues("", "OFF", SubtitleType.VTT),
+    SubtitleValues(
+        "https://duoidi6ujfbv.cloudfront.net/media/115/subtitles/5ccb556be8e7f.vtt",
+        "Czech VTT",
+        SubtitleType.VTT),
+    SubtitleValues("http://www.storiesinflight.com/js_videosub/jellies.srt",
+        "English SRT", SubtitleType.SRT)
+  ];
   PlaybackValues selectedPlayback;
   ResolutionValues selectedResolution;
   AudioValues selectedAudio;
+  SubtitleValues selectedSubtitle;
   int playerPosition, playerDuration;
   Timer _controlTimer;
   Stopwatch _stopwatch;
   int orientation = 1;
+  SubtitleController _subtitleController;
 
   @override
   void initState() {
@@ -98,6 +110,13 @@ class _PlayerState extends State<Player> {
               }
             }
           }
+          if (subtitleValues.length > 1) {
+            _subtitleController = SubtitleController(
+                subtitleUrl: subtitleValues[0].url,
+                showSubtitles: true,
+                type: subtitleValues[0].type);
+            selectedSubtitle = subtitleValues[0];
+          }
           _controller.play();
         }
         actualRatio = _controller.value.aspectRatio;
@@ -124,7 +143,7 @@ class _PlayerState extends State<Player> {
         if (_timer != null) _timer.cancel();
       });
       if (toHide) {
-        _timer = new Timer(const Duration(seconds: 3), () {
+        _timer = new Timer(const Duration(seconds: 4), () {
           hideControls();
         });
       }
@@ -264,7 +283,7 @@ class _PlayerState extends State<Player> {
                           padding: const EdgeInsets.all(5.0),
                           child: Row(
                             children: <Widget>[
-                              Icon(Icons.stop,
+                              Icon(Icons.check,
                                   color: selectedPlayback.name == value.name
                                       ? Colors.black
                                       : Colors.transparent),
@@ -301,7 +320,7 @@ class _PlayerState extends State<Player> {
                           padding: const EdgeInsets.all(5.0),
                           child: Row(
                             children: <Widget>[
-                              Icon(Icons.stop,
+                              Icon(Icons.check,
                                   color: selectedResolution.value == value.value
                                       ? Colors.black
                                       : Colors.transparent),
@@ -338,7 +357,7 @@ class _PlayerState extends State<Player> {
                           padding: const EdgeInsets.all(5.0),
                           child: Row(
                             children: <Widget>[
-                              Icon(Icons.stop,
+                              Icon(Icons.check,
                                   color: selectedAudio.name == value.name
                                       ? Colors.black
                                       : Colors.transparent),
@@ -362,6 +381,51 @@ class _PlayerState extends State<Player> {
           });
     }
 
+    void _settingModalBottomSheetSubtitles(context) {
+      showModalBottomSheet(
+          isScrollControlled: true,
+          context: context,
+          builder: (BuildContext bc) {
+            return Container(
+                child: new Wrap(
+              children: subtitleValues
+                  .map((value) => InkWell(
+                        child: Padding(
+                          padding: const EdgeInsets.all(5.0),
+                          child: Row(
+                            children: <Widget>[
+                              Icon(Icons.check,
+                                  color: selectedSubtitle.name == value.name
+                                      ? Colors.black
+                                      : Colors.transparent),
+                              SizedBox(
+                                width: 10,
+                              ),
+                              Text(value.name),
+                            ],
+                          ),
+                        ),
+                        onTap: () {
+                          setState(() {
+                            selectedSubtitle = value;
+                            if (selectedSubtitle.name == "OFF")
+                              _subtitleController = null;
+                            else
+                              _subtitleController = SubtitleController(
+                                  subtitleUrl: selectedSubtitle.url,
+                                  showSubtitles: selectedSubtitle.name == "OFF"
+                                      ? false
+                                      : true,
+                                  type: selectedSubtitle.type);
+                          });
+                          Navigator.pop(context);
+                        },
+                      ))
+                  .toList(),
+            ));
+          });
+    }
+
     void _settingModalBottomSheet(context) {
       showModalBottomSheet(
           isScrollControlled: true,
@@ -376,7 +440,7 @@ class _PlayerState extends State<Player> {
                           left: 5, top: 10, bottom: 10, right: 5),
                       child: Row(
                         children: <Widget>[
-                          Icon(Icons.play_arrow),
+                          Icon(Icons.play_circle_filled),
                           SizedBox(
                             width: 10,
                           ),
@@ -396,7 +460,7 @@ class _PlayerState extends State<Player> {
                             left: 5, top: 10, bottom: 10, right: 5),
                         child: Row(
                           children: <Widget>[
-                            Icon(Icons.play_arrow),
+                            Icon(Icons.high_quality),
                             SizedBox(
                               width: 10,
                             ),
@@ -416,7 +480,7 @@ class _PlayerState extends State<Player> {
                             left: 5, top: 10, bottom: 10, right: 5),
                         child: Row(
                           children: <Widget>[
-                            Icon(Icons.play_arrow),
+                            Icon(Icons.audiotrack),
                             SizedBox(
                               width: 10,
                             ),
@@ -427,6 +491,26 @@ class _PlayerState extends State<Player> {
                       onTap: () {
                         Navigator.pop(context);
                         _settingModalBottomSheetAudios(context);
+                      },
+                    ),
+                  if (selectedSubtitle != null)
+                    InkWell(
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                            left: 5, top: 10, bottom: 10, right: 5),
+                        child: Row(
+                          children: <Widget>[
+                            Icon(Icons.closed_caption),
+                            SizedBox(
+                              width: 10,
+                            ),
+                            Text('Captions : ${selectedSubtitle.name}'),
+                          ],
+                        ),
+                      ),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _settingModalBottomSheetSubtitles(context);
                       },
                     ),
                 ],
@@ -714,19 +798,7 @@ class _PlayerState extends State<Player> {
                                   child: Card(
                                     elevation: 2.0,
                                     color: Colors.transparent,
-                                    child: SubTitleWrapper(
-                                      subtitleController: SubtitleController(
-                                        subtitleUrl:
-                                            "http://www.storiesinflight.com/js_videosub/jellies.srt",
-                                        showSubtitles: true,
-                                      ),
-                                      subtitleStyle: SubtitleStyle(
-                                          textColor: Colors.white,
-                                          fontSize: 100.0,
-                                          hasBorder: true),
-                                      videoChild: VideoPlayer(_controller),
-                                      videoPlayerController: _controller,
-                                    ),
+                                    child: VideoPlayer(_controller),
                                   )),
                             )),
                         onTap: () {
@@ -767,6 +839,20 @@ class _PlayerState extends State<Player> {
                     ? CircularProgressIndicator()
                     : new Container(),
                 if (_showController) videoPlayerControls(),
+                if(_subtitleController != null)
+                Positioned(
+                  bottom: 50,
+                  left: 0,
+                  right: 0,
+                  child:
+//                      Text("hello", style: TextStyle(color: Colors.green), textAlign: TextAlign.center,),
+                      SubtitleTextView(
+                    subtitleController: _subtitleController,
+                    videoPlayerController: _controller,
+                    subtitleStyle: SubtitleStyle(
+                        fontSize: 16, textColor: Colors.white, hasBorder: true),
+                  ),
+                )
               ],
             ),
           )),
@@ -821,4 +907,12 @@ class AudioValues {
   String code;
 
   AudioValues(this.name, this.code);
+}
+
+class SubtitleValues {
+  String url;
+  String name;
+  SubtitleType type;
+
+  SubtitleValues(this.url, this.name, this.type);
 }

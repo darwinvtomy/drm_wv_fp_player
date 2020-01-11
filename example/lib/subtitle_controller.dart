@@ -8,20 +8,26 @@ import 'models/subtitles.dart';
 class SubtitleController {
   String subtitlesContent;
   String subtitleUrl;
+  SubtitleType type;
   final bool showSubtitles;
 
   SubtitleController({
     this.subtitleUrl,
     this.subtitlesContent,
     this.showSubtitles = true,
+    this.type = SubtitleType.VTT,
   });
 
   Future<Subtitles> getSubtitles() async {
-    RegExp regExp = new RegExp(
+    RegExp regExp = type == SubtitleType.VTT ? new RegExp(
       r"(\d{1,2}):(\d{2}):(\d{2})\.(\d+) --> (\d{1,2}):(\d{2}):(\d{2})\.(\d+)(?:.*)(\D*)",
       caseSensitive: false,
       multiLine: true,
-    );
+    ) : RegExp(
+      r"(\d{1,2}):(\d{2}):(\d{2})\,(\d+) --> (\d{1,2}):(\d{2}):(\d{2})\,(\d+)(?:.*)(\D*)",
+      caseSensitive: false,
+      multiLine: true,
+    ) ;
 
     if (subtitlesContent == null && subtitleUrl != null) {
       http.Response response = await http.get(subtitleUrl);
@@ -65,4 +71,9 @@ class SubtitleController {
     Subtitles subtitles = Subtitles(subtitles: subtitleList);
     return subtitles;
   }
+}
+
+enum SubtitleType{
+  VTT,
+  SRT
 }
