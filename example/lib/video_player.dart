@@ -15,6 +15,7 @@ class VideoApp extends StatefulWidget {
 
 class _VideoAppState extends State<VideoApp> {
   VideoPlayerController _controller;
+  bool _controllerWasPlaying = false;
 
   @override
   void initState() {
@@ -48,6 +49,90 @@ class _VideoAppState extends State<VideoApp> {
 
   @override
   Widget build(BuildContext context) {
+
+    Widget progressIndicator;
+    if (_controller.value.initialized) {
+      final int duration = _controller.value.duration.inMilliseconds;
+      final int position = _controller.value.position.inMilliseconds;
+
+      int maxBuffering = 0;
+      for (DurationRange range in _controller.value.buffered) {
+        final int end = range.end.inMilliseconds;
+        if (end > maxBuffering) {
+          maxBuffering = end;
+        }
+      }
+
+      double val = position / duration;
+      progressIndicator = Stack(
+        fit: StackFit.passthrough,
+        children: <Widget>[
+          LinearProgressIndicator(
+            value: maxBuffering / duration,
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.red),
+            backgroundColor: Colors.grey,
+          ),
+
+          Slider(
+            value: val,
+            min: 0.0,
+            max: 1.0,
+            activeColor: Colors.grey,
+            inactiveColor: Colors.white,
+            onChanged: (double value) {
+              setState(() {
+                print(value);
+                val = value;
+                if (!_controller.value.initialized) {
+                  return;
+                }
+                final Duration position = _controller.value.duration * value;
+                _controller.seekTo(position);
+              });
+            },
+            onChangeStart: (double value) {
+              if (!_controller.value.initialized) {
+                return;
+              }
+              _controllerWasPlaying = _controller.value.isPlaying;
+              if (_controllerWasPlaying) {
+                _controller.pause();
+              }
+            },
+
+            onChangeEnd: (double value){
+              if (_controllerWasPlaying) {
+                _controller.play();
+              }
+            },
+          ),
+
+          /* LinearProgressIndicator(
+            value: position / duration,
+            valueColor: AlwaysStoppedAnimation<Color>(colors.playedColor),
+            backgroundColor: Colors.transparent,
+          ),*/
+        ],
+      );
+    } else {
+      progressIndicator = LinearProgressIndicator(
+        value: null,
+        valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
+        backgroundColor: Colors.red,
+      );
+    }
+    final Widget paddedProgressIndicator = Padding(
+      padding: EdgeInsets.all(10),
+      child: progressIndicator,
+    );
+ /*   if (widget.allowScrubbing) {
+      return _VideoScrubber(
+        child: paddedProgressIndicator,
+        controller: _controller,
+      );
+    } else {*/
+//      return paddedProgressIndicator;
+
     return MaterialApp(
       title: 'Video Demo',
       home: Scaffold(
@@ -61,8 +146,9 @@ class _VideoAppState extends State<VideoApp> {
                 : Container(),
           ),
           MediaVolumeSeekBar(_controller),
+          paddedProgressIndicator
         ]),
-        floatingActionButton: FloatingActionButton(
+        /*floatingActionButton: FloatingActionButton(
           onPressed: () {
             setState(() {
               _controller.value.isPlaying
@@ -73,7 +159,7 @@ class _VideoAppState extends State<VideoApp> {
           child: Icon(
             _controller.value.isPlaying ? Icons.pause : Icons.play_arrow,
           ),
-        ),
+        ),*/
       ),
     );
   }

@@ -9,6 +9,7 @@ class MediaContent {
   final String ad_tag_uri;
   final List<String> playlist;
   final String spherical_stereo_mode;
+  final List<String> subtitles;
 
   MediaContent(
       {@required this.name,
@@ -18,7 +19,8 @@ class MediaContent {
       this.drm_license_url,
       this.ad_tag_uri,
       this.spherical_stereo_mode,
-      this.playlist});
+      this.playlist,
+      this.subtitles});
 
   @override
   String toString() {

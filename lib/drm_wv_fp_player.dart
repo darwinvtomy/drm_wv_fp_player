@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -43,6 +44,10 @@ class VideoPlayerValue {
     this.isLooping = false,
     this.isBuffering = false,
     this.volume = 1.0,
+    this.speed = 1,
+    this.resolutions = const <String>[],
+    this.audios = const <String>[],
+    this.subtitles = const <String>[],
     this.errorDescription,
   });
 
@@ -74,6 +79,12 @@ class VideoPlayerValue {
   /// The current volume of the playback.
   final double volume;
 
+  final double speed;
+
+  final List<dynamic> resolutions;
+  final List<dynamic> audios;
+  final List<dynamic> subtitles;
+
   /// A description of the error if present.
   ///
   /// If [hasError] is false this is [null].
@@ -92,6 +103,9 @@ class VideoPlayerValue {
 
   VideoPlayerValue copyWith({
     Duration duration,
+    List<dynamic> resolutions,
+    List<dynamic> audios,
+    List<dynamic> subtitles,
     Size size,
     Duration position,
     List<DurationRange> buffered,
@@ -99,6 +113,7 @@ class VideoPlayerValue {
     bool isLooping,
     bool isBuffering,
     double volume,
+    double speed,
     String errorDescription,
   }) {
     return VideoPlayerValue(
@@ -110,6 +125,10 @@ class VideoPlayerValue {
       isLooping: isLooping ?? this.isLooping,
       isBuffering: isBuffering ?? this.isBuffering,
       volume: volume ?? this.volume,
+      speed: speed ?? this.speed,
+      resolutions: resolutions ?? this.resolutions,
+      audios: audios ?? this.audios,
+      subtitles: subtitles ?? this.subtitles,
       errorDescription: errorDescription ?? this.errorDescription,
     );
   }
@@ -125,6 +144,10 @@ class VideoPlayerValue {
         'isLooping: $isLooping, '
         'isBuffering: $isBuffering'
         'volume: $volume, '
+        'speed: $speed, '
+        'resolutiosn: [${resolutions.join(', ')}], '
+        'audios: [${audios.join(', ')}], '
+        'subtitles: [${subtitles.join(', ')}], '
         'errorDescription: $errorDescription)';
   }
 }
@@ -215,7 +238,8 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
           'drm_scheme': mediaContent.drm_scheme,
           'drm_license_url': mediaContent.drm_license_url,
           'ad_tag_uri': mediaContent.ad_tag_uri,
-          'spherical_stereo_mode': mediaContent.spherical_stereo_mode
+          'spherical_stereo_mode': mediaContent.spherical_stereo_mode,
+          "subtitlesLink" : mediaContent.subtitles,
         };
         break;
       case DataSourceType.network:
@@ -253,7 +277,13 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
             duration: Duration(milliseconds: map['duration']),
             size: Size(map['width']?.toDouble() ?? 0.0,
                 map['height']?.toDouble() ?? 0.0),
+            resolutions: jsonDecode(map['resolutions']),
+            subtitles: jsonDecode(map['subtitles']),
+            audios: jsonDecode(map['audios']),
           );
+          print("Resolutons : ${map['resolutions']}");
+          print("Audios : ${map['audios']}");
+          print("Subtitles : ${map['subtitles']}");
           initializingCompleter.complete(null);
           _applyLooping();
           _applyVolume();
@@ -394,6 +424,45 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     );
   }
 
+  Future<void> _applySpeed() async {
+    if (!value.initialized || _isDisposed) {
+      return;
+    }
+    // TODO(amirh): remove this on when the invokeMethod update makes it to stable Flutter.
+    // https://github.com/flutter/flutter/issues/26431
+    // ignore: strong_mode_implicit_dynamic_method
+    await _channel.invokeMethod(
+      'speed',
+      <String, dynamic>{'textureId': _textureId, 'speed': value.speed},
+    );
+  }
+
+  Future<void> _applyResolution(int width, int height) async {
+    if (!value.initialized || _isDisposed) {
+      return;
+    }
+    // TODO(amirh): remove this on when the invokeMethod update makes it to stable Flutter.
+    // https://github.com/flutter/flutter/issues/26431
+    // ignore: strong_mode_implicit_dynamic_method
+    await _channel.invokeMethod(
+      'resolution',
+      <String, dynamic>{'textureId': _textureId, 'width': width, 'height' : height},
+    );
+  }
+
+  Future<void> _applyAudio(String code) async {
+    if (!value.initialized || _isDisposed) {
+      return;
+    }
+    // TODO(amirh): remove this on when the invokeMethod update makes it to stable Flutter.
+    // https://github.com/flutter/flutter/issues/26431
+    // ignore: strong_mode_implicit_dynamic_method
+    await _channel.invokeMethod(
+      'audio',
+      <String, dynamic>{'textureId': _textureId, 'code': code},
+    );
+  }
+
   /// The position in the current video.
   Future<Duration> get position async {
     if (_isDisposed) {
@@ -436,6 +505,19 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   Future<void> setVolume(double volume) async {
     value = value.copyWith(volume: volume.clamp(0.0, 1.0));
     await _applyVolume();
+  }
+
+  Future<void> setSpeed(double speed) async {
+    value = value.copyWith(speed: speed.clamp(0.25, 2.0));
+    await _applySpeed();
+  }
+
+  Future<void> setResolution(int width, int height ) async {
+    await _applyResolution(width, height);
+  }
+
+  Future<void> setAudio(String code ) async {
+    await _applyAudio(code);
   }
 }
 
@@ -703,6 +785,7 @@ class _VideoProgressIndicatorState extends State<VideoProgressIndicator> {
 
 class MediaVolumeSeekBar extends StatefulWidget {
   final VideoPlayerController controller;
+
   MediaVolumeSeekBar(this.controller);
 
   @override

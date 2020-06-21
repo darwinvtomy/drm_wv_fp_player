@@ -35,6 +35,7 @@ class Sample {
   final String ad_tag_uri;
   final List<String> playlist;
   final String spherical_stereo_mode;
+  final int playedLength;
 
   factory Sample.fromJson(Map<String, dynamic> parsedJson) {
     List<String> playlistfiles = null;
@@ -50,7 +51,8 @@ class Sample {
         drm_license_url: parsedJson['drm_license_url'],
         ad_tag_uri: parsedJson['ad_tag_uri'],
         spherical_stereo_mode: parsedJson['spherical_stereo_mode'],
-        playlist: playlistfiles);
+        playlist: playlistfiles,
+        playedLength: 0);
   }
 
   static List<Sample> parseSampleLists(parsedresponseBody) {
@@ -67,7 +69,8 @@ class Sample {
       this.drm_license_url,
       this.ad_tag_uri,
       this.spherical_stereo_mode,
-      this.playlist});
+      this.playlist,
+      this.playedLength});
 
   @override
   String toString() {
