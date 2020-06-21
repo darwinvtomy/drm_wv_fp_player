@@ -5,24 +5,17 @@ package io.flutter.darwinvtomy.plugins.drm_wv_fp_player;
 // found in the LICENSE file.
 
 
-import static com.google.android.exoplayer2.Player.REPEAT_MODE_ALL;
-import static com.google.android.exoplayer2.Player.REPEAT_MODE_OFF;
-
 import android.content.Context;
-import android.content.ContextWrapper;
-import android.content.res.Resources;
-import android.graphics.Canvas;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Build;
+import android.util.Base64;
 import android.util.Log;
 import android.util.LongSparseArray;
+import android.util.Pair;
 import android.view.Surface;
-import android.view.SurfaceHolder;
 import android.view.SurfaceView;
-import android.view.TextureView;
-import android.view.View;
 import android.view.ViewGroup;
-import android.content.Context;
 
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.DefaultRenderersFactory;
@@ -35,13 +28,14 @@ import com.google.android.exoplayer2.Player.EventListener;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.audio.AudioAttributes;
 import com.google.android.exoplayer2.drm.DefaultDrmSessionManager;
+import com.google.android.exoplayer2.drm.DrmInitData;
+import com.google.android.exoplayer2.drm.DrmSession;
 import com.google.android.exoplayer2.drm.FrameworkMediaCrypto;
 import com.google.android.exoplayer2.drm.FrameworkMediaDrm;
 import com.google.android.exoplayer2.drm.HttpMediaDrmCallback;
+import com.google.android.exoplayer2.drm.OfflineLicenseHelper;
 import com.google.android.exoplayer2.drm.UnsupportedDrmException;
 import com.google.android.exoplayer2.extractor.DefaultExtractorsFactory;
-import com.google.android.exoplayer2.offline.FilteringManifestParser;
-import com.google.android.exoplayer2.offline.StreamKey;
 import com.google.android.exoplayer2.source.ExtractorMediaSource;
 import com.google.android.exoplayer2.source.MediaSource;
 import com.google.android.exoplayer2.source.MergingMediaSource;
@@ -49,13 +43,12 @@ import com.google.android.exoplayer2.source.SingleSampleMediaSource;
 import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.source.dash.DashMediaSource;
+import com.google.android.exoplayer2.source.dash.DashUtil;
 import com.google.android.exoplayer2.source.dash.DefaultDashChunkSource;
-import com.google.android.exoplayer2.source.dash.manifest.DashManifestParser;
+import com.google.android.exoplayer2.source.dash.manifest.DashManifest;
 import com.google.android.exoplayer2.source.hls.HlsMediaSource;
-import com.google.android.exoplayer2.source.hls.playlist.DefaultHlsPlaylistParserFactory;
 import com.google.android.exoplayer2.source.smoothstreaming.DefaultSsChunkSource;
 import com.google.android.exoplayer2.source.smoothstreaming.SsMediaSource;
-import com.google.android.exoplayer2.source.smoothstreaming.manifest.SsManifestParser;
 import com.google.android.exoplayer2.trackselection.AdaptiveTrackSelection;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.trackselection.MappingTrackSelector;
@@ -81,9 +74,18 @@ import com.google.android.exoplayer2.util.Assertions;
 import com.google.android.exoplayer2.util.MimeTypes;
 import com.google.android.exoplayer2.util.Util;
 
-
 import org.json.JSONArray;
-import org.json.JSONObject;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 import io.flutter.plugin.common.EventChannel;
 import io.flutter.plugin.common.MethodCall;
@@ -95,22 +97,18 @@ import io.flutter.plugin.common.PluginRegistry.Registrar;
 import io.flutter.view.FlutterNativeView;
 import io.flutter.view.TextureRegistry;
 
-import java.io.File;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import static android.content.Context.MODE_PRIVATE;
+import static com.google.android.exoplayer2.Player.REPEAT_MODE_ALL;
+import static com.google.android.exoplayer2.Player.REPEAT_MODE_OFF;
 
 public class DrmWvFpPlayerPlugin implements MethodCallHandler {
     private static final String TAG = "VideoPlayerPlugin";
     private static FrameworkMediaDrm mediaDrm;
     private static final String DOWNLOAD_CONTENT_DIRECTORY = "downloads";
     private static final DefaultBandwidthMeter BANDWIDTH_METER = new DefaultBandwidthMeter();
+    private final static String PREF_NAME = "MOVIDONE_EXOPLAYER";
+    private final static String OFFLINE_KEY_ID = "OFFLINE_KEY_ID";
+    private static OfflineLicenseHelper<FrameworkMediaCrypto> mOfflineLicenseHelper;
 
 
     private static class VideoPlayer {
@@ -127,7 +125,6 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
 
         private boolean isInitialized = false;
         private DefaultTrackSelector trackSelector;
-
 
 
         VideoPlayer(
@@ -172,13 +169,14 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
             this.eventChannel = eventChannel;
             this.textureEntry = textureEntry;
             DefaultDrmSessionManager<FrameworkMediaCrypto> drmSessionManager = null;
+            Uri uri = Uri.parse(mediaContent.uri);
             //Add Custom DRM Management
 
             if (mediaContent.drm_scheme != null) {
                 String drmLicenseUrl = mediaContent.drm_license_url;//WIDEVINE EXAMPLE
                 String[] keyRequestPropertiesArray =
                         null;
-                boolean multiSession = false;
+                boolean multiSession = true;
                 String errorStringId = "An unknown DRM error occurred";
                 if (Util.SDK_INT < 18) {
                     errorStringId = "Protected content not supported on API levels below 18";
@@ -191,11 +189,11 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
                         } else {
                             drmSessionManager =
                                     buildDrmSessionManagerV18(
-                                            drmSchemeUuid, drmLicenseUrl, keyRequestPropertiesArray, multiSession);
+                                            drmSchemeUuid, drmLicenseUrl, keyRequestPropertiesArray, multiSession, uri,context);
                         }
-                    } catch (UnsupportedDrmException e) {
-                        errorStringId = e.reason == UnsupportedDrmException.REASON_UNSUPPORTED_SCHEME
-                                ? "This device does not support the required DRM scheme" : "An unknown DRM error occurred";
+                    } catch (UnsupportedDrmException | IOException | InterruptedException e) {
+                        /*errorStringId = e.reason == UnsupportedDrmException.REASON_UNSUPPORTED_SCHEME
+                                ? "This device does not support the required DRM scheme" : "An unknown DRM error occurred";*/
                     }
                 }
                 if (drmSessionManager == null) {
@@ -217,7 +215,7 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
             exoPlayer =
                     ExoPlayerFactory.newSimpleInstance(context, renderersFactory, trackSelector, drmSessionManager);
             // exoPlayer = ExoPlayerFactory.newSimpleInstance(context, trackSelector);
-            Uri uri = Uri.parse(mediaContent.uri);
+
 
             DataSource.Factory dataSourceFactory;
             if (isFileOrAsset(uri)) {
@@ -233,13 +231,13 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
             }
             MediaSource[] mediaSources = new MediaSource[1 + mediaContent.subtitlesLink.size()];
             mediaSources[0] = buildMediaSource(uri, mediaContent.extension, dataSourceFactory, context);
-            for (int i= 0; i<mediaContent.subtitlesLink.size(); i++) {
+            for (int i = 0; i < mediaContent.subtitlesLink.size(); i++) {
                 Format textFormat = Format.createTextSampleFormat(null, MimeTypes.APPLICATION_SUBRIP,
                         null, Format.NO_VALUE, Format.NO_VALUE, "en", null, Format.OFFSET_SAMPLE_RELATIVE);
-                Log.e("srt link is",mediaContent.subtitlesLink.get(i));
+                Log.e("srt link is", mediaContent.subtitlesLink.get(i));
                 Uri uriSubtitle = Uri.parse(mediaContent.subtitlesLink.get(i));
                 MediaSource subtitleSource = (new SingleSampleMediaSource.Factory(dataSourceFactory)).createMediaSource(uriSubtitle, textFormat, C.TIME_UNSET);
-                mediaSources[1+i] = subtitleSource;
+                mediaSources[1 + i] = subtitleSource;
             }
             MediaSource mediaSource;
             mediaSource = mediaSources.length == 1 ? mediaSources[0] : new MergingMediaSource(mediaSources);
@@ -264,6 +262,7 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
                     new DefaultDataSourceFactory(context, listener, buildHttpDataSourceFactory(listener, context));
             return buildReadOnlyCacheDataSource(upstreamFactory, getDownloadCache());
         }
+
         /**
          * Returns a {@link HttpDataSource.Factory}.
          */
@@ -276,12 +275,12 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
         private synchronized Cache getDownloadCache() {
             Cache downloadCache;
             File downloadContentDirectory = new File(getDownloadDirectory(), DOWNLOAD_CONTENT_DIRECTORY);
-                downloadCache = new SimpleCache(downloadContentDirectory, new NoOpCacheEvictor());
+            downloadCache = new SimpleCache(downloadContentDirectory, new NoOpCacheEvictor());
             return downloadCache;
         }
 
         private File getDownloadDirectory() {
-            File  downloadDirectory = new File("");
+            File downloadDirectory = new File("");
             return downloadDirectory;
         }
 
@@ -353,7 +352,7 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
                     ViewGroup.LayoutParams.MATCH_PARENT));
 
             PlayerView player = new PlayerView(context);
-            player.setLayoutParams( new ViewGroup.LayoutParams(
+            player.setLayoutParams(new ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT));
             player.setPlayer(exoPlayer);
@@ -783,8 +782,8 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
     }
 
     private static DefaultDrmSessionManager<FrameworkMediaCrypto> buildDrmSessionManagerV18(
-            UUID uuid, String licenseUrl, String[] keyRequestPropertiesArray, boolean multiSession)
-            throws UnsupportedDrmException {
+            UUID uuid, String licenseUrl, String[] keyRequestPropertiesArray, boolean multiSession, Uri uri,Context context)
+            throws UnsupportedDrmException, IOException, InterruptedException {
 
 
         HttpDataSource.Factory licenseDataSourceFactory =
@@ -803,7 +802,101 @@ public class DrmWvFpPlayerPlugin implements MethodCallHandler {
         DefaultDrmSessionManager<FrameworkMediaCrypto> drmSessionManager = new DefaultDrmSessionManager<>(
                 uuid, mediaDrm, drmCallback, null, multiSession);
 
+        /*
+        * offline support
+        * */
+        new Thread() {
+
+
+            @Override
+            public void run() {
+                {
+                    try {
+                        DefaultHttpDataSourceFactory httpDataSourceFactory = new DefaultHttpDataSourceFactory(
+                                "ExoPlayer");
+                         mOfflineLicenseHelper = OfflineLicenseHelper
+                                .newWidevineInstance(licenseUrl, httpDataSourceFactory);
+                        DataSource dataSource = httpDataSourceFactory.createDataSource();
+                        DashManifest dashManifest = DashUtil.loadManifest(dataSource,
+                                uri);
+                        DrmInitData drmInitData = DashUtil.loadDrmInitData(dataSource, dashManifest.getPeriod(0));
+                        byte[] offlineLicenseKeySetId = mOfflineLicenseHelper.downloadLicense(drmInitData);
+                        storeKeySetId(offlineLicenseKeySetId,context);
+                        Log.d("Sammy","Licence Download Successful: "+ offlineLicenseKeySetId);
+                    } catch (Exception e) {
+                        Log.e("Sammy", "license download failed", e);
+                    }
+                }
+            }
+        }.start();
+        byte[] offlineKeySetId = getStoredKeySetId(context);
+        if(offlineKeySetId != null || isLicenseValid(offlineKeySetId)) {
+            drmSessionManager.setMode(DefaultDrmSessionManager.MODE_PLAYBACK, offlineKeySetId);
+        }
         return drmSessionManager;
+    }
+
+    private static void storeKeySetId(byte[] keySetId,Context context)
+    {
+        Log.d(TAG, "[LICENSE] Storing key set id value ... " + keySetId);
+
+        if (keySetId != null)
+        {
+            SharedPreferences sharedPreferences = context.getSharedPreferences(PREF_NAME, MODE_PRIVATE);
+            SharedPreferences.Editor editor = sharedPreferences.edit();
+
+            String keySetIdB64 = Base64.encodeToString(keySetId, Base64.DEFAULT);
+
+            // encode in b64 to be able to save byte array
+            editor.putString(OFFLINE_KEY_ID, keySetIdB64);
+            editor.apply();
+
+            Log.d(TAG, "[LICENSE] Stored keySetId in B64 value :" + keySetIdB64);
+        }
+    }
+
+    private static byte[] getStoredKeySetId(Context context)
+    {
+        SharedPreferences sharedPreferences = context.getSharedPreferences(PREF_NAME, MODE_PRIVATE);
+        String keySetIdB64 = sharedPreferences.getString(OFFLINE_KEY_ID, null);
+
+        if (keySetIdB64 != null)
+        {
+            byte[] keysetId =  Base64.decode(keySetIdB64, Base64.DEFAULT);
+            Log.d(TAG, "[LICENSE] Stored keySetId in B64 value :" + keySetIdB64);
+
+            return keysetId;
+        }
+
+        return null;
+    }
+
+    /**
+     * Check license validity
+     * @param keySetId byte[]
+     * @return boolean
+     * */
+    private static boolean isLicenseValid(byte[] keySetId)
+    {
+        if (mOfflineLicenseHelper != null && keySetId != null)
+        {
+            try
+            {
+                // get license duration
+                Pair<Long, Long> licenseDurationRemainingSec = mOfflineLicenseHelper.getLicenseDurationRemainingSec(keySetId);
+                long licenseDuration = licenseDurationRemainingSec.first;
+
+                Log.d(TAG, "[LICENSE] Time remaining " + licenseDuration + " sec");
+                return licenseDuration > 0;
+            }
+            catch (DrmSession.DrmSessionException e)
+            {
+                e.printStackTrace();
+                return false;
+            }
+        }
+
+        return false;
     }
 
     private static void releaseMediaDrm() {

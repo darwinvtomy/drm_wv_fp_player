@@ -64,10 +64,10 @@ class _PlayerState extends State<Player> {
     selectedPlayback = new PlaybackValues("Normal", 1.00);
     _controller = VideoPlayerController.exoplayerMeidaFrameWork(MediaContent(
       name: widget.sampleVideo.name,
-      uri: widget.sampleVideo.uri,
+      uri: "https://5dcc3fe0c5e90.streamlock.net/vod/_definst_/mp4:ishakua_soo.mp4/manifest.mpd",
       extension: widget.sampleVideo.extension,
       drm_scheme: widget.sampleVideo.drm_scheme,
-      drm_license_url: widget.sampleVideo.drm_license_url,
+      drm_license_url: "https://widevine-dash.ezdrm.com/proxy?pX=8C73DA",
       ad_tag_uri: widget.sampleVideo.ad_tag_uri,
       spherical_stereo_mode: widget.sampleVideo.spherical_stereo_mode,
       playlist: widget.sampleVideo.playlist,
